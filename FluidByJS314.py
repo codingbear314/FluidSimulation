@@ -1,13 +1,14 @@
 from vpython import *
 import random
 
-BOX_SIZE = 10
+BOX_SIZE = 3
 PARTICLE_RADIUS = 0.2
 DIPOLE_STRENGTH = 5
 LONDON_STRENGTH = 2
 FORCE_RANGE = 1
 PARTICLE_MASS = 1
 BOUNCE_FACTOR = 0.2
+COLLISION_FACTOR = 1
 
 class Particle:
     def __init__(self, pos, radius, color):
@@ -33,14 +34,31 @@ class Fluid:
                 r = self.particles[firstObj].obj.pos - self.particles[secondObj].obj.pos
                 distance = mag(r)
                 if distance < 0.2:
-                    self.particles[firstObj].velocityBounceFactor *= BOUNCE_FACTOR
-                    self.particles[secondObj].velocityBounceFactor *= BOUNCE_FACTOR
                     distance = 0.2
-                if distance < FORCE_RANGE: # To avoid division by zero. If we check the collisions, it will be slower.
-                    dpl_dpl_frc = -r * DIPOLE_STRENGTH / distance**3
-                    ldn_frc = -r / distance**6
-                    self.particles[firstObj].force += dpl_dpl_frc + ldn_frc
-                    self.particles[secondObj].force -= dpl_dpl_frc + ldn_frc
+                dpl_dpl_frc = -r * DIPOLE_STRENGTH / distance**3
+                ldn_frc = -r / distance**6
+                self.particles[firstObj].force += dpl_dpl_frc + ldn_frc
+                self.particles[secondObj].force -= dpl_dpl_frc + ldn_frc
+    def check_collision(self):
+        for firstObj in range(len(self.particles) - 1):
+            for secondObj in range(firstObj + 1, len(self.particles)):
+                r = self.particles[firstObj].obj.pos - self.particles[secondObj].obj.pos
+                distance = mag(r)
+                if distance < 2 * PARTICLE_RADIUS:
+                    colision_vector = hat(r)
+
+                    u1 = self.particles[firstObj].velocity
+                    u2 = self.particles[secondObj].velocity
+
+                    collision_u1 = dot(u1, colision_vector) * colision_vector
+                    collision_u2 = dot(u2, colision_vector) * colision_vector
+
+                    collsion_v1 =  ((collision_u1 + collision_u2) - COLLISION_FACTOR * (collision_u1 - collision_u2)) / 2
+                    collsion_v2 =  ((collision_u1 + collision_u2) + COLLISION_FACTOR * (collision_u1 - collision_u2)) / 2
+
+                    self.particles[firstObj].velocity += collsion_v1 - collision_u1
+                    self.particles[secondObj].velocity += collsion_v2 - collision_u2
+
     def apply_gravity(self):
         for particle in self.particles:
             particle.force += vector(0, -98, 0)
@@ -59,7 +77,9 @@ class Fluid:
             particle.velocity *= particle.velocityBounceFactor
             particle.velocity += particle.acceleration * dt
         
-        
+        # Check for collisions with other particles
+        self.check_collision()
+
         # Check for collisions with container walls
         for particle in self.particles:
             print("{}\t{}\t{}".format(particle.obj.pos, particle.velocity, particle.force))
@@ -87,8 +107,8 @@ class Fluid:
             particle.obj.pos += particle.velocity * dt
 
 def main():
-    fluid = Fluid(1000)
-    dt = 0.005
+    fluid = Fluid(3)
+    dt = 0.01
     while True:
         rate(200)
         #print(fluid.particles[0].obj.pos, '\t', fluid.particles[0].velocity, '\t', fluid.particles[0].force)
